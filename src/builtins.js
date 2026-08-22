@@ -32,7 +32,7 @@ function expectType(callNode, name, v, kind) {
   if (!ok) {
     throw runtimeError(
       CODES.TYPE_ERROR,
-      '`' + name + '` expects a ' + (kind === 'number' ? 'number' : kind) + ', got ' + tn + ' ' + brief(v),
+      '`' + name + '` expects ' + article(kind === 'number' ? 'number' : kind) + ', got ' + tn + ' ' + brief(v),
       spanOf(callNode),
       callNode.filePath ?? null,
       null
@@ -42,6 +42,11 @@ function expectType(callNode, name, v, kind) {
 
 const strArg = (n, v) => (c) => expectType(c, n, v, 'string');
 export { expectType };
+
+// `a` or `an`, because "expects a array" reads like a bug.
+function article(noun) {
+  return (/^[aeiou]/.test(noun) ? 'an ' : 'a ') + noun;
+}
 
 function spanOf(callNode) {
   return callNode ? { line: callNode.line, col: callNode.col, endCol: callNode.endCol } : null;
@@ -132,7 +137,7 @@ export function installBuiltins(env) {
 
   def('int', [1, 1], (node, args) => {
     const v = args[0];
-    if (typeof v === 'number') return Math.trunc(v);
+    if (typeof v === 'number') return Math.trunc(v) + 0; // `+ 0` normalises -0 to 0
     if (typeof v === 'string') {
       const t = v.trim();
       if (/^[+-]?\d+$/.test(t)) return parseInt(t, 10);
@@ -146,7 +151,10 @@ export function installBuiltins(env) {
     if (typeof v === 'number') return v;
     if (typeof v === 'string') {
       const t = v.trim();
-      if (t !== '' && Number.isFinite(Number(t))) return Number(t);
+      // Decimal literals only: `float("0x10")` is a mistake, not 16.
+      if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(t) && Number.isFinite(Number(t))) {
+        return Number(t);
+      }
       throw badConvert(node, 'float', v);
     }
     throw badConvert(node, 'float', v);
@@ -165,15 +173,16 @@ export function installBuiltins(env) {
     if (step === 0) {
       throw runtimeError(CODES.TYPE_ERROR, '`range` step must not be zero', spanOf(node), node.filePath ?? null, null);
     }
-    const out = [];
-    if (step > 0) {
-      for (let i = low; i < high && out.length <= MAX_RANGE; i += step) out.push(i);
-    } else {
-      for (let i = low; i > high && out.length <= MAX_RANGE; i += step) out.push(i);
-    }
-    if (out.length > MAX_RANGE) {
+    // Count first: refuse oversized ranges before allocating anything.
+    const span = high - low;
+    const count = step > 0
+      ? (span > 0 ? Math.ceil(span / step) : 0)
+      : (span < 0 ? Math.ceil(-span / -step) : 0);
+    if (count > MAX_RANGE) {
       throw runtimeError(CODES.TYPE_ERROR, '`range` is limited to ' + MAX_RANGE + ' elements', spanOf(node), node.filePath ?? null, null);
     }
+    const out = new Array(count);
+    for (let i = 0; i < count; i++) out[i] = low + i * step;
     return out;
   });
 

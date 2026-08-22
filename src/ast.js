@@ -32,6 +32,8 @@ export const Call = (span, f) => node('Call', span, f);                // {calle
 export const Index = (span, f) => node('Index', span, f);              // {obj, index}
 export const Slice = (span, f) => node('Slice', span, f);              // {obj, low, high}
 export const RangeLit = (span, f) => node('RangeLit', span, f);        // {low, high}
+export const ArrLit = (span, f) => node('ArrLit', span, f);            // {items[]}
+export const MapLit = (span, f) => node('MapLit', span, f);            // {entries: [{key, value}]}
 
 export const Ident = (span, f) => node('Ident', span, f);              // {name, tok}
 export const NumLit = (span, f) => node('NumLit', span, f);            // {value, isInt}
@@ -70,6 +72,8 @@ export function astDump(root) {
       case 'Index': return 'Index';
       case 'Slice': return 'Slice';
       case 'RangeLit': return 'RangeLit';
+      case 'ArrLit': return 'ArrLit items=' + n.items.length;
+      case 'MapLit': return 'MapLit entries=' + n.entries.length;
       case 'Ident': return 'Ident ' + n.name;
       case 'NumLit': return 'NumLit ' + String(n.value) + (n.isInt ? '' : 'f');
       case 'StrLit': return 'StrLit ' + JSON.stringify(n.value);
@@ -120,6 +124,10 @@ export function astDump(root) {
         return [n.obj, ...(n.low ? [n.low] : []), ...(n.high ? [n.high] : [])];
       case 'RangeLit':
         return [n.low, n.high];
+      case 'ArrLit':
+        return [...n.items];
+      case 'MapLit':
+        return n.entries.flatMap(en => [en.key, en.value]);
       case 'Ident':
       case 'NumLit':
       case 'StrLit':

@@ -12,6 +12,7 @@ const REGISTRY = {
   keys: [1, 1],
   values: [1, 1],
   get: [2, 3],
+  has: [2, 2],
   str: [1, 1],
   int: [1, 1],
   float: [1, 1],
@@ -31,7 +32,8 @@ const REGISTRY = {
   round: [1, 1],
   min: [1, 1],
   max: [1, 1],
-  ask: [0, 1]
+  ask: [0, 1],
+  write: [0, Infinity]
 };
 
 const CALL = { line: 1, col: 1, endCol: 4 };
@@ -672,4 +674,27 @@ test('ask rejects a non-string prompt before touching stdin', () => {
     CODES.TYPE_ERROR,
     '`ask` expects a string, got int 3'
   );
+});
+
+test('has distinguishes stored values from missing keys', () => {
+  const env = makeEnv();
+  const m = new Map([['a', null], ['b', 1]]);
+  assert.equal(call(env, 'has', m, 'a'), true);   // stored null is present
+  assert.equal(call(env, 'has', m, 'b'), true);
+  assert.equal(call(env, 'has', m, 'z'), false);
+  assertNativeError(() => call(env, 'has', [1], 'a'), CODES.TYPE_ERROR, '`has` expects a map, got array [..1 items]');
+});
+
+test('write emits without a trailing newline and returns null', () => {
+  const env = makeEnv();
+  const chunks = [];
+  const orig = process.stdout.write;
+  process.stdout.write = (s) => { chunks.push(s); return true; };
+  try {
+    assert.equal(call(env, 'write', 'a', 1), null);
+    assert.equal(call(env, 'write'), null);
+  } finally {
+    process.stdout.write = orig;
+  }
+  assert.deepEqual(chunks, ['a 1', '']);
 });

@@ -132,11 +132,11 @@ Program
   (newlines are insignificant). Strings `"..."` or `'...'` with escapes
   `\n \t \r \\ \" \' \0`; any other escape is E0104; newline inside a string
   is E0102 unterminated (span = opening quote to end of that line). Numbers:
-  digits (with `_` between digits), optional `.digits` fraction (a trailing
+  digits with `_` between digits, optional `.digits` fraction (a trailing
   dot with no digit after is E0103), optional exponent `[eE][+-]?digits`;
-  `1..2` lexes INT DOTDOT INT. Identifiers: ASCII letter or `_`, then
-  letters/digits/`_`; non-ASCII letters allowed if `/\p{L}/u`. `..` →
-  DOTDOT; single `.` → DOT.
+  `1..2` lexes INT DOTDOT INT. Identifiers start with an ASCII letter, `_`,
+  or any Unicode letter (`/\p{L}/u`), then letters/digits/`_`; other
+  non-ASCII characters are E0101. `..` → DOTDOT; single `.` → DOT.
 
 ### src/parser.js
 
@@ -155,7 +155,9 @@ Program
 - `if cond { } elif cond { } else { }`: braces mandatory; `elif` chains
   into `branches`. Conditions unparenthesised.
 - Calls/args, index `xs[i]`, slice `xs[a:b]` / `xs[:b]` / `xs[a:]` (step not
-  supported), range literal `a..b` parsed as binary op at its precedence.
+  supported), range literal `a..b` at its precedence level producing a
+  RangeLit node; array `[a, b]` and map `{"k": v}` literals (keys are
+  expressions, runtime-checked to be strings).
 - Errors: E0201 with expected/found via describeToken, E0203 unexpected
   token, E0204 target, E0205 duplicate param, E0206 nesting depth > 500.
   Incomplete input at EOF → unexpectedEOF (E0202).
@@ -183,8 +185,10 @@ Program
 - `Interpreter` class: `constructor({trace = false, traceSink = line => {},
    maxDepth = 400} = {})`; property `globals: Env` pre-loaded with builtins;
   `run(program, {filePath})` executes and returns the last statement's
-  value (or null); catches stray Return/Break/Continue signals at top level
-  → runtimeError E0310. Call depth exceeded → E0309. Trace mode emits
+  value (or null); `opts.env` runs against an explicit environment instead
+  of a fresh child of globals (the REPL passes its persistent globals so
+  bindings accumulate). Catches stray Return/Break/Continue signals at top
+  level → runtimeError E0310. Call depth exceeded → E0309. Trace mode emits
   `call name(args...)` / `ret name -> value` lines indented `2*depth` spaces
   via traceSink.
 - Signals exported: `BreakSignal`, `ContinueSignal`, `ReturnSignal(value)`.
@@ -208,21 +212,25 @@ Program
   point at the caller.
 - Shared helpers exported for consistency:
   `expectArgs(node, name, args, min, max)` → E0303 message
-  "`len` expects between 1 and 2 arguments, got 3";
-  `expectString/expectNumber/expectArray/expectMap(node, name, v)` → E0304
-  message "`upper` expects a string, got int".
+  "`len` expects 1 argument, got 2";
+  `expectType(node, name, v, kind)` → E0304
+  message "`upper` expects a string, got int" (with a/an article).
 - Registry (name: signature):
   `len(x)`; `print(...args)` (space-joined + newline, returns null);
   `push(arr, x)` mutates, returns arr; `pop(arr)` returns last or E0305
-  "pop from empty array"; `keys(m)`, `values(m)` insertion order;
+  "pop from an empty array"; `keys(m)`, `values(m)` insertion order;
   `str(x)`; `int(x)` (floats truncate toward zero; strings parse fully,
   garbage → E0304); `float(x)` similar; `type(x)`; 
   `range(n)` / `range(a, b)` / `range(a, b, step≠0)` → array;
   `upper(s) lower(s) trim(s) split(s, sep≠"") join(arr, sep) chars(s)
   replace(s, a≠"", b) contains(xs, x) (array member / substring / map key);
   abs(n) floor(n) ceil(n) round(n) min(arr) max(arr);
-  get(m, k, default=null); ask(prompt?) reads one line from stdin (null at
-  EOF)`.
+  get(m, k, default=null); has(m, k) (true when the key is stored, even if
+  the value is null); write(...args) like print without the trailing
+  newline; ask(prompt?) reads one line from stdin (null at EOF)`.
+- Arity enforcement for natives happens interpreter-side via `expectArgs`
+  before the native `call` runs; the stored `[min,max]` tuples document and
+  drive that.
 
 ### src/repl.js, src/cli.js, bin/ember.js
 

@@ -103,6 +103,13 @@ export function installBuiltins(env) {
     return null;
   });
 
+  // Like print but without the trailing newline; the adventure example uses
+  // it for prompts alongside `ask`.
+  def('write', [0, Infinity], (_node, args) => {
+    process.stdout.write(args.map(a => stringify(a)).join(' '));
+    return null;
+  });
+
   def('push', [2, 2], (node, args) => {
     expectType(node, 'push', args[0], 'array');
     args[0].push(args[1]);
@@ -131,6 +138,14 @@ export function installBuiltins(env) {
     expectType(node, 'get', args[0], 'map');
     expectType(node, 'get', args[1], 'string');
     return args[0].has(args[1]) ? args[0].get(args[1]) : (args[2] ?? null);
+  });
+
+  // True when the map stores `k`, regardless of the stored value —
+  // `get(m, k, null)` alone cannot tell a missing key from a stored null.
+  def('has', [2, 2], (node, args) => {
+    expectType(node, 'has', args[0], 'map');
+    expectType(node, 'has', args[1], 'string');
+    return args[0].has(args[1]);
   });
 
   def('str', [1, 1], (_node, args) => stringify(args[0]));

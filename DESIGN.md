@@ -169,7 +169,6 @@ Ember 0.1.0 — type :help for commands
 hi
 >> let xs = [1, 
 .. 2]
-= null
 ```
 
 - Input prompt `>> `, continuation prompt `.. `. Both use the `prompt`

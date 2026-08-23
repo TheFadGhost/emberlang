@@ -82,15 +82,17 @@ output also disable it):
 ```
 $ node bin/ember.js run --no-color tmp/broken.em
 error[E0301]: undefined variable `gretng`
-  --> tmp\broken.em:2:7
+  --> tmp/broken.em:2:7
   |
 2 | print(gretng)
   |       ^^^^^^
   |
-help: variables must be declared before use with `let`
+help: variables must be declared before use with `let`.
+
 ```
 
-The location separator follows your platform's path rendering. Exit codes:
+The location line echoes the path exactly as you passed it, separator and
+all. Exit codes:
 0 success, 2 usage error or unreadable file, 65 syntax error, 70 runtime error.
 
 ## Language tour

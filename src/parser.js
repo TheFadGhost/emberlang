@@ -154,8 +154,23 @@ class Parser {
   invalidTarget(expr) {
     const help = expr.kind === 'Call'
       ? 'a call result cannot be assigned into; assign to a variable or an indexed element instead.'
-      : null;
-    throw syntaxError(CODES.INVALID_ASSIGN_TARGET, 'invalid assignment target', expr, this.filePath, help);
+      : 'assign to a variable (`x = ...`) or an indexed element (`xs[i] = ...`, `m["k"] = ...`).';
+    throw syntaxError(CODES.INVALID_ASSIGN_TARGET,
+      'invalid assignment target ' + this.briefNode(expr), expr, this.filePath, help);
+  }
+
+  // Short description of an expression for messages, without needing the
+  // original source text.
+  briefNode(expr) {
+    switch (expr.kind) {
+      case 'Ident': return '`' + expr.name + '` is not a variable here';
+      case 'NumLit': return '`' + String(expr.value) + '`';
+      case 'StrLit': return 'string ' + JSON.stringify(expr.value);
+      case 'BoolLit': return '`' + String(expr.value) + '`';
+      case 'Call': return 'a call result';
+      case 'BinOp': case 'UnOp': return 'an expression result';
+      default: return 'this expression';
+    }
   }
 
   parseLet() {

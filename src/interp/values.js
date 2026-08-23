@@ -6,6 +6,10 @@ export function truthy(v) {
   return !(v === false || v === null);
 }
 
+// Element cap for materialised ranges (`a..b` and the `range` builtin);
+// single source shared by interpreter and builtins.
+export const MAX_RANGE = 5_000_000;
+
 export function typeName(v) {
   if (v === null) return 'null';
   if (typeof v === 'boolean') return 'bool';
@@ -17,26 +21,52 @@ export function typeName(v) {
   return 'unknown';
 }
 
-// Deep structural equality; functions compare by identity.
+// Deep structural equality; functions compare by identity. Iterative on
+// purpose: cyclic or very deep structures must compare (or differ) without
+// overflowing the host stack. Revisiting a pair inside one comparison means
+// the two cycles agree so far and is treated as equal.
 export function equals(a, b) {
-  if (a === b) return true;
-  if (a === null || b === null) return false;
-  if (typeof a !== typeof b && !(typeof a === 'object' && typeof b === 'object')) return false;
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!equals(a[i], b[i])) return false;
+  const stack = [[a, b]];
+  const seenPairs = new Map();
+  while (stack.length > 0) {
+    const [x, y] = stack.pop();
+    if (x === y) continue;
+    if (x === null || y === null) return false;
+    const tx = typeof x;
+    if (tx !== typeof y) return false;
+    if (tx !== 'object') {
+      if (x !== y) return false;
+      continue;
     }
-    return true;
-  }
-  if (a instanceof Map && b instanceof Map) {
-    if (a.size !== b.size) return false;
-    for (const [k, v] of a) {
-      if (!b.has(k) || !equals(v, b.get(k))) return false;
+    const ax = Array.isArray(x);
+    const ay = Array.isArray(y);
+    const mx = x instanceof Map;
+    const my = y instanceof Map;
+    if (ax !== ay || mx !== my || (!ax && !mx)) {
+      // Different container kinds, or a non-container object (function):
+      // identity was the only chance and it already failed.
+      return false;
     }
-    return true;
+    let ysForX = seenPairs.get(x);
+    if (ysForX === undefined) {
+      ysForX = new Set();
+      seenPairs.set(x, ysForX);
+    } else if (ysForX.has(y)) {
+      continue; // cycle revisited with everything so far equal
+    }
+    ysForX.add(y);
+    if (ax) {
+      if (x.length !== y.length) return false;
+      for (let i = 0; i < x.length; i++) stack.push([x[i], y[i]]);
+    } else {
+      if (x.size !== y.size) return false;
+      for (const [k, v] of x) {
+        if (!y.has(k)) return false;
+        stack.push([v, y.get(k)]);
+      }
+    }
   }
-  return false;
+  return true;
 }
 
 const MAX_STRINGIFY_DEPTH = 20;

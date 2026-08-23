@@ -152,8 +152,14 @@ export function tokenize(source, filePath) {
       takeDigits();
     }
 
-    const value = Number(text.replace(/_/g, ''));
-    toks.push({ type: isFloat ? T.FLOAT : T.INT, value, line, col: startCol, endCol: col });
+  const value = Number(text.replace(/_/g, ''));
+  if (!Number.isFinite(value)) {
+    // `9e999` would otherwise become Infinity and print as a number.
+    throw syntaxError(CODES.MALFORMED_NUMBER,
+      'number `' + text + '` is out of range', { line, col: startCol, endCol: col }, filePath,
+      'numbers are 64-bit floats; the largest is about 1.8e308.');
+  }
+  toks.push({ type: isFloat ? T.FLOAT : T.INT, value, line, col: startCol, endCol: col });
   }
 
   function lexWord() {

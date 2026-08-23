@@ -58,6 +58,10 @@ function builtinNames() {
   return [...env.vars.keys()];
 }
 
+// Computed once: the builtin set never changes during a session, so
+// rebuilding it on every Tab press was pure waste.
+const BUILTIN_WORDS = builtinNames();
+
 function freshInterpreter() {
   const ix = new Interpreter({ trace: false });
   ix.globals.define('argv', []);
@@ -107,7 +111,7 @@ export function startRepl({ version, noColorFlag = false, themeName = null }) {
     input: process.stdin,
     output: process.stdout,
     prompt: MAIN_PROMPT,
-    completer: line => makeCompleter(completion.names, builtinNames())(line)
+    completer: line => makeCompleter(completion.names, BUILTIN_WORDS)(line)
   });
 
   const execute = (program, src) => {
@@ -115,9 +119,7 @@ export function startRepl({ version, noColorFlag = false, themeName = null }) {
       const value = interp.run(program, { filePath: '<repl>', env: interp.globals });
       if (value !== null) out(paint('result', '= ' + repr(value)) + '\n');
     } catch (e) {
-      const err = toRenderable(e);
-      if (!err.filePath) err.filePath = '<repl>'; // builtin errors carry spans but no path
-      errOut(renderError(err, src, colorInfo));
+      errOut(renderError(toRenderable(e), src, colorInfo, '<repl>'));
     }
   };
 
@@ -134,14 +136,14 @@ export function startRepl({ version, noColorFlag = false, themeName = null }) {
           try {
             out(tokenize(cmd.arg, '<repl>').map(formatToken).join('\n') + '\n');
           } catch (e) {
-            errOut(renderError(toRenderable(e), cmd.arg, colorInfo));
+            errOut(renderError(toRenderable(e), cmd.arg, colorInfo, '<repl>'));
           }
           break;
         case 'ast':
           try {
             out(astDump(parse(tokenize(cmd.arg, '<repl>'), '<repl>')) + '\n');
           } catch (e) {
-            errOut(renderError(toRenderable(e), cmd.arg, colorInfo));
+            errOut(renderError(toRenderable(e), cmd.arg, colorInfo, '<repl>'));
           }
           break;
         case 'env':
@@ -193,7 +195,7 @@ export function startRepl({ version, noColorFlag = false, themeName = null }) {
         showPrompt();
         return;
       }
-      errOut(renderError(toRenderable(e), buffer, colorInfo));
+      errOut(renderError(toRenderable(e), buffer, colorInfo, '<repl>'));
       buffer = '';
       setMainPrompt();
       showPrompt();

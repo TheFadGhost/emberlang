@@ -52,13 +52,13 @@ A blank line follows the block. Nothing else is printed: no frames, no
 internal stack traces. If the interpreter itself has a bug, the user sees
 
 ```
-internal error[E9901]: <what failed>
+internal[E9901]: <what failed>
 
 this is a bug in Ember, not in your program
 ```
 
-with severity `internal` and exit code 70, and the JS stack stays in the
-host's logs via `--debug-crash` only.
+with severity `internal` (rendered in the error role) and exit code 70, and
+the JS stack stays out of sight unless `--debug-crash` is passed.
 
 ### Before / after
 
@@ -72,19 +72,18 @@ SyntaxError: Unexpected token ')'
 The same mistake through Ember's renderer:
 
 ```
-error[E0203]: unexpected `)` 
+error[E0203]: unexpected `)`
+  --> examples/calc.em:1:18
+  |
+1 | let total = (a + b))
+  |                  ^
+  |
+help: remove the extra `)` or open a new `(` before this expression.
 
-  --> examples/calc.em:2:14
-   |
- 2 | let total = (a + b))
-   |              ^^^^^^
-   |
-help: remove the extra `)` or open a new `(` before this expression
 ```
 
-(The caret row above spans `a + b)` to show the expression the parser had
-assembled when the stray token arrived; spans always cover real tokens, never
-guesses wider than the evidence.)
+(The caret row above points at the stray `)` token; spans always cover real
+tokens, never guesses wider than the evidence.)
 
 ## Error code registry
 
@@ -144,16 +143,17 @@ pipeline stage so a code tells you where to look in the source tree.
   before rendering; caret arithmetic happens on the elided text so excerpt
   and caret stay aligned.
 
-Example with a tab and a wide character (caret under `名`, two cells wide):
+Example with a tab and a wide character (caret under `名`, two cells wide;
+the tab before it expands to four cells and the caret still lands exactly
+under the token):
 
 ```
-error[E0304]: cannot add `int` and `string`
+error[E0304]: `+` cannot add int 1 and string "one"
+  --> examples/wide.em:1:5
+  |
+1 |     名 + "one"
+  |         ^
 
-  --> examples/wide.em:2:7
-   |
- 2 |     名 + 1
-   |       ^^
-   |
 ```
 
 ## REPL design

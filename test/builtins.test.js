@@ -112,9 +112,12 @@ test('exported expectArgs produces the contracted E0303 message and shape', () =
   assert.equal(err.endCol, 4);
 });
 
-test('errors carry the call site span and filePath', () => {
+test('errors carry the call site span; front ends stamp filePath', () => {
   const env = makeEnv();
-  const node = { line: 7, col: 9, endCol: 15, filePath: 'demo.em' };
+  // Natives deliberately leave filePath null (audit finding: the old
+  // callNode.filePath lookup was dead code); cli.js/repl.js stamp it via
+  // renderError's defaultPath.
+  const node = { line: 7, col: 9, endCol: 15 };
   let err = null;
   try {
     env.get('len').call(node, [3]);
@@ -124,7 +127,7 @@ test('errors carry the call site span and filePath', () => {
   assert.ok(err instanceof EmberError);
   assert.equal(err.kind, 'runtime');
   assert.equal(err.code, CODES.TYPE_ERROR);
-  assert.equal(err.filePath, 'demo.em');
+  assert.equal(err.filePath, null);
   assert.equal(err.line, 7);
   assert.equal(err.col, 9);
   assert.equal(err.endCol, 15);

@@ -13,13 +13,6 @@ export class Env {
     this.vars.set(name, value);
   }
 
-  has(name) {
-    for (let e = this; e; e = e.parent) {
-      if (e.vars.has(name)) return true;
-    }
-    return false;
-  }
-
   get(name, span, filePath) {
     for (let e = this; e; e = e.parent) {
       if (e.vars.has(name)) return e.vars.get(name);
@@ -53,6 +46,6 @@ function undefinedVariable(name, span, filePath) {
     'undefined variable `' + name + '`',
     span,
     filePath,
-    'variables must be declared before use with `let`'
+    'variables must be declared before use with `let`.'
   );
 }

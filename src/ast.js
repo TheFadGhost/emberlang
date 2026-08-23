@@ -11,9 +11,7 @@ function node(kind, span, fields = {}) {
   };
 }
 
-const firstSpan = (x) => x; // spans are {line, col, endCol} or tokens
-
-export const Program = (span, body) => node('Program', firstSpan(span), { body });
+export const Program = (span, body) => node('Program', span, { body });
 export const LetStmt = (span, f) => node('LetStmt', span, f);          // {name, nameTok, value}
 export const AssignStmt = (span, f) => node('AssignStmt', span, f);    // {target, op, value}
 export const ExprStmt = (span, f) => node('ExprStmt', span, f);        // {expr}

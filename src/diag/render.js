@@ -107,10 +107,13 @@ function paintOrPlain(paint, role, text) {
 export function renderDiagnostic(d, sourceText, colorInfo) {
   const paint = colorInfo && colorInfo.enabled ? colorInfo.paint : null;
   const severityWord = d.severity ?? 'error';
+  // `internal` shares the error role's colour; there is no separate theme
+  // entry because it is still an error to the user.
+  const severityRole = severityWord === 'internal' ? 'error' : severityWord;
   const out = [];
 
   out.push(
-    paintOrPlain(paint, severityWord, severityWord) +
+    paintOrPlain(paint, severityRole, severityWord) +
     '[' + d.code + ']: ' +
     paintMessage(d.message ?? '', paint)
   );
@@ -149,10 +152,11 @@ export function renderDiagnostic(d, sourceText, colorInfo) {
 
     const totalAfter = displayWidth(expanded);
     const at = (cpIdx) => colMap[Math.min(Math.max(cpIdx, 0), colMap.length - 1)];
-    let startDisp = Math.min(at(d.col - 1), totalAfter);
-    let endDisp = Math.min(Math.max(at(d.endCol - 1), startDisp + 1), totalAfter);
-    startDisp = remap(startDisp);
-    endDisp = Math.max(startDisp + 1, remap(endDisp));
+    // Remap raw display columns through the elision FIRST (its thresholds
+    // are in raw coordinates), then clamp to the rendered width.
+    let startDisp = Math.min(remap(at(d.col - 1)), totalAfter);
+    let endDisp = Math.min(remap(at(d.endCol - 1)), totalAfter);
+    endDisp = Math.max(startDisp + 1, endDisp);
 
     out.push(paintOrPlain(paint, 'gutter', gutterRow));
     out.push(paintOrPlain(paint, 'gutter', rowPrefix) + expanded);
@@ -173,11 +177,15 @@ export function renderDiagnostic(d, sourceText, colorInfo) {
     out.push('this is a bug in Ember, not in your program');
   }
 
-  return out.join('\n') + '\n';
+  // DESIGN.md: a blank line follows every diagnostic block.
+  return out.join('\n') + '\n\n';
 }
 
 // Convenience wrapper reading fields off an EmberError-like object.
-export function renderError(err, sourceText, colorInfo) {
+// Builtin-raised errors carry call-site spans but no filePath; the front
+// ends pass their filename here so every block gets its location line.
+export function renderError(err, sourceText, colorInfo, defaultPath = null) {
+  if (!err.filePath && err.line != null) err.filePath = defaultPath;
   return renderDiagnostic(
     {
       severity: err.kind === 'internal' ? 'internal' : 'error',

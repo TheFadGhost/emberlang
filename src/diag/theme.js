@@ -45,7 +45,9 @@ export function resolveTheme({ noColorFlag = false, themeName = null, stream = p
 
   let chosen = themeName ?? env.EMBER_THEME ?? 'dark';
   if (!THEME_NAMES.includes(chosen)) {
-    stream.write('warning: unknown theme `' + chosen + '`, using `dark`; valid themes: ' + THEME_NAMES.join(', ') + '\n');
+    // Warnings go to stderr regardless of which stream colour detection
+    // used; stdout stays reserved for program output.
+    process.stderr.write('warning: unknown theme `' + chosen + '`, using `dark`; valid themes: ' + THEME_NAMES.join(', ') + '\n');
     chosen = 'dark';
   }
   const codes = THEMES[chosen];

@@ -57,6 +57,14 @@ function asSpan(tokOrSpan) {
   return { line: tokOrSpan.line, col: tokOrSpan.col, endCol: tokOrSpan.endCol ?? tokOrSpan.col };
 }
 
+export { asSpan };
+
+// "argument"/"arguments" for count-bearing messages; shared so wording
+// stays identical across interpreter and builtins.
+export function argWord(n) {
+  return n === 1 ? 'argument' : 'arguments';
+}
+
 export function syntaxError(code, message, span, filePath, help) {
   return new EmberError('syntax', code, message, asSpan(span), filePath, help);
 }

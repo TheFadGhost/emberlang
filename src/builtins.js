@@ -2,10 +2,8 @@
 // errors with the CALL SITE span so diagnostics point at the caller.
 
 import fs from 'node:fs';
-import { runtimeError, CODES, brief } from './errors.js';
-import { stringify, typeName, equals as deepEq } from './interp/values.js';
-
-const MAX_RANGE = 5_000_000;
+import { runtimeError, CODES, brief, argWord, asSpan } from './errors.js';
+import { stringify, typeName, equals as deepEq, MAX_RANGE } from './interp/values.js';
 
 // --- shared argument helpers (used by builtins and available to tests) ---
 
@@ -13,14 +11,13 @@ export function expectArgs(callNode, name, args, min, max = min) {
   const got = args.length;
   if (got >= min && got <= max) return;
   let expected;
-  if (min === max) expected = 'expects ' + min + ' argument' + (min === 1 ? '' : 's');
-  else if (max === Infinity) expected = 'expects at least ' + min + ' argument' + (min === 1 ? '' : 's');
+  if (min === max) expected = 'expects ' + min + ' ' + argWord(min);
+  else if (max === Infinity) expected = 'expects at least ' + min + ' ' + argWord(min);
   else expected = 'expects between ' + min + ' and ' + max + ' arguments';
   throw runtimeError(
     CODES.WRONG_ARG_COUNT,
     '`' + name + '` ' + expected + ', got ' + got,
-    spanOf(callNode),
-    callNode.filePath ?? null,
+    asSpan(callNode),
     null
   );
 }
@@ -33,8 +30,7 @@ function expectType(callNode, name, v, kind) {
     throw runtimeError(
       CODES.TYPE_ERROR,
       '`' + name + '` expects ' + article(kind === 'number' ? 'number' : kind) + ', got ' + tn + ' ' + brief(v),
-      spanOf(callNode),
-      callNode.filePath ?? null,
+      asSpan(callNode),
       null
     );
   }
@@ -46,10 +42,6 @@ export { expectType };
 // `a` or `an`, because "expects a array" reads like a bug.
 function article(noun) {
   return (/^[aeiou]/.test(noun) ? 'an ' : 'a ') + noun;
-}
-
-function spanOf(callNode) {
-  return callNode ? { line: callNode.line, col: callNode.col, endCol: callNode.endCol } : null;
 }
 
 // --- stdin plumbing for ask(): buffered so piped multi-line input works ---
@@ -119,7 +111,7 @@ export function installBuiltins(env) {
   def('pop', [1, 1], (node, args) => {
     expectType(node, 'pop', args[0], 'array');
     if (args[0].length === 0) {
-      throw runtimeError(CODES.INDEX_OUT_OF_RANGE, 'pop from an empty array', spanOf(node), node.filePath ?? null, null);
+      throw runtimeError(CODES.INDEX_OUT_OF_RANGE, 'pop from an empty array', asSpan(node), null);
     }
     return args[0].pop();
   });
@@ -186,7 +178,7 @@ export function installBuiltins(env) {
       if (args.length === 3) step = Math.trunc(args[2]);
     }
     if (step === 0) {
-      throw runtimeError(CODES.TYPE_ERROR, '`range` step must not be zero', spanOf(node), node.filePath ?? null, null);
+      throw runtimeError(CODES.TYPE_ERROR, '`range` step must not be zero', asSpan(node), null);
     }
     // Count first: refuse oversized ranges before allocating anything.
     const span = high - low;
@@ -194,7 +186,7 @@ export function installBuiltins(env) {
       ? (span > 0 ? Math.ceil(span / step) : 0)
       : (span < 0 ? Math.ceil(-span / -step) : 0);
     if (count > MAX_RANGE) {
-      throw runtimeError(CODES.TYPE_ERROR, '`range` is limited to ' + MAX_RANGE + ' elements', spanOf(node), node.filePath ?? null, null);
+      throw runtimeError(CODES.TYPE_ERROR, '`range` is limited to ' + MAX_RANGE + ' elements', asSpan(node), null);
     }
     const out = new Array(count);
     for (let i = 0; i < count; i++) out[i] = low + i * step;
@@ -259,18 +251,21 @@ function numericFold(node, name, arr, fold) {
     throw runtimeError(
       CODES.TYPE_ERROR,
       '`' + name + '` expects a non-empty array',
-      spanOf(node), node.filePath ?? null, null
+      asSpan(node), null
     );
   }
   for (const x of arr) numArg(node, name, x);
-  return fold(...arr);
+  // Plain loop: spreading 200k arguments into fold() overflows the stack.
+  let best = arr[0];
+  for (let i = 1; i < arr.length; i++) best = fold(best, arr[i]);
+  return best;
 }
 
 function typeErr(node, name, v, expectedPhrase) {
   return runtimeError(
     CODES.TYPE_ERROR,
     '`' + name + '` expects ' + expectedPhrase + ', got ' + typeName(v) + ' ' + brief(v),
-    spanOf(node), node.filePath ?? null, null
+    asSpan(node), null
   );
 }
 
@@ -278,8 +273,9 @@ function badConvert(node, name, v) {
   return runtimeError(
     CODES.TYPE_ERROR,
     '`' + name + '` cannot convert ' + brief(v),
-    spanOf(node), node.filePath ?? null,
-    'value must look like a whole ' + (name === 'int' ? 'integer' : 'number')
+    asSpan(node),
+    null,
+    'value must look like a whole ' + (name === 'int' ? 'integer' : 'number') + '.'
   );
 }
 
@@ -287,6 +283,6 @@ function sepEmpty(node, name) {
   return runtimeError(
     CODES.TYPE_ERROR,
     '`' + name + '` separator must not be empty',
-    spanOf(node), node.filePath ?? null, null
+    asSpan(node), null
   );
 }

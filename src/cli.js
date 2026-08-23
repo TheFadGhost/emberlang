@@ -84,8 +84,8 @@ function asEmberError(e) {
   return internalError(String((e && e.message) || e));
 }
 
-function failWith(err, source, colorInfo) {
-  process.stderr.write(renderError(err, source, colorInfo));
+function failWith(err, source, colorInfo, file = null) {
+  process.stderr.write(renderError(err, source, colorInfo, file));
   return err.kind === 'syntax' ? EXIT_SYNTAX : EXIT_RUNTIME;
 }
 
@@ -94,7 +94,7 @@ function dumpTokens(src, file, colorInfo) {
     process.stdout.write(tokenize(src, file).map(formatToken).join('\n') + '\n');
     return EXIT_OK;
   } catch (e) {
-    return failWith(asEmberError(e), src, colorInfo);
+    return failWith(asEmberError(e), src, colorInfo, file);
   }
 }
 
@@ -103,7 +103,7 @@ function dumpAst(src, file, colorInfo) {
     process.stdout.write(astDump(parse(tokenize(src, file), file)) + '\n');
     return EXIT_OK;
   } catch (e) {
-    return failWith(asEmberError(e), src, colorInfo);
+    return failWith(asEmberError(e), src, colorInfo, file);
   }
 }
 
@@ -198,6 +198,13 @@ export function cliMain(argv) {
 
   if (command === null) command = 'repl';
 
+  // Meaningless combinations fail loudly instead of being ignored.
+  if (wantTokens && wantAst) return usageError('`--tokens` and `--ast` cannot be combined');
+  if ((wantTokens || wantAst || traceCalls) && command !== 'run') {
+    const bad = traceCalls ? '--trace-calls' : wantTokens ? '--tokens' : '--ast';
+    return usageError('`' + bad + '` only applies to `run`');
+  }
+
   const colorInfo = resolveTheme({ noColorFlag, themeName, stream: process.stdout });
 
   switch (command) {
@@ -231,13 +238,9 @@ export function cliMain(argv) {
       try {
         program = parse(tokenize(src, file), file);
       } catch (e) {
-        return failWith(asEmberError(e), src, colorInfo);
+        return failWith(asEmberError(e), src, colorInfo, file);
       }
 
-      if (!Interpreter) {
-        process.stderr.write(renderError(internalError('cannot load src/interpreter.js'), src, colorInfo));
-        return EXIT_RUNTIME;
-      }
 
       const interp = new Interpreter({
         trace: traceCalls,
@@ -249,9 +252,7 @@ export function cliMain(argv) {
       try {
         interp.run(program, { filePath: file });
       } catch (e) {
-        const err = asEmberError(e);
-        if (!err.filePath) err.filePath = file; // builtin errors carry spans but no path
-        return failWith(err, src, colorInfo);
+        return failWith(asEmberError(e), src, colorInfo, file);
       }
       return EXIT_OK;
     }

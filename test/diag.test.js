@@ -30,20 +30,20 @@ test('plain diagnostic block matches snapshot', () => {
     '1 | let total = (a + b))\n' +
     '  |                  ^\n' +
     '  |\n' +
-    'help: remove the extra `)`\n');
+    'help: remove the extra `)`\n\n');
 });
 
 test('no excerpt when no source text, location and help still render', () => {
   assert.equal(renderDiagnostic(diag(), null, off),
     'error[E0203]: unexpected `)`\n' +
     '  --> examples/calc.em:1:18\n' +
-    'help: remove the extra `)`\n');
+    'help: remove the extra `)`\n\n');
 });
 
 test('no excerpt or location for spanless runtime errors', () => {
   const out = renderDiagnostic(diag({ line: null, col: null, endCol: null, filePath: null }), null, off);
   assert.equal(out,
-    'error[E0203]: unexpected `)`\nhelp: remove the extra `)`\n');
+    'error[E0203]: unexpected `)`\nhelp: remove the extra `)`\n\n');
 });
 
 test('caret spans full token width', () => {
@@ -123,19 +123,23 @@ test('colour disabled when stream is not a TTY', () => {
   assert.equal(c.enabled, false);
 });
 
-test('unknown theme falls back to dark with warning', () => {
+test('unknown theme falls back to dark with warning on stderr', () => {
   const sink = [];
-  const stream = fakeTTY();
-  stream.write = (s) => sink.push(s);
-  const c = resolveTheme({ themeName: 'solarflare', stream });
-  assert.equal(c.themeName, 'dark');
+  const orig = process.stderr.write;
+  process.stderr.write = (s) => { sink.push(s); return true; };
+  try {
+    const c = resolveTheme({ themeName: 'solarflare', stream: fakeTTY() });
+    assert.equal(c.themeName, 'dark');
+  } finally {
+    process.stderr.write = orig;
+  }
   assert.match(sink.join(''), /unknown theme `solarflare`/);
 });
 
 test('internal error renders bug notice without stack', () => {
   const out = renderDiagnostic(diag({ severity: 'internal', code: 'E9901', message: 'eval fell off a cliff', help: null, line: null, col: null, endCol: null, filePath: null }), SRC, off);
   assert.equal(out,
-    'internal[E9901]: eval fell off a cliff\n\nthis is a bug in Ember, not in your program\n');
+    'internal[E9901]: eval fell off a cliff\n\nthis is a bug in Ember, not in your program\n\n');
 });
 
 test('endCol past end of line clamps to line width', () => {

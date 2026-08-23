@@ -4,13 +4,10 @@
 // exceptions caught by the nearest matching construct, so stray ones surface
 // as E0310 at the top level.
 
-import { runtimeError, internalError, CODES, brief } from './errors.js';
+import { runtimeError, internalError, CODES, brief, argWord } from './errors.js';
 import { Env } from './interp/env.js';
-import { truthy, typeName, equals, repr } from './interp/values.js';
+import { truthy, typeName, equals, repr, MAX_RANGE } from './interp/values.js';
 import { installBuiltins, expectArgs } from './builtins.js';
-
-// Element cap for a materialised `low..high`, matching the `range` builtin.
-const MAX_RANGE = 5_000_000;
 
 // Non-local control flow. Each signal remembers the statement that raised it
 // so top-level misuse can point its E0310 diagnostic at the keyword.
@@ -35,7 +32,6 @@ export class ContinueSignal {
 
 const isInt = (v) => typeof v === 'number' && Number.isInteger(v);
 const isNum = (v) => typeof v === 'number';
-const argWord = (n) => (n === 1 ? 'argument' : 'arguments');
 
 export class Interpreter {
   constructor({ trace = false, traceSink = () => {}, maxDepth = 400 } = {}) {
@@ -348,7 +344,7 @@ export class Interpreter {
       if (args.length !== fn.params.length) {
         throw runtimeError(
           CODES.WRONG_ARG_COUNT,
-          '`' + fn.name + '` expects ' + fn.params.length + ' ' + argWord(fn.params.length) +
+          '`' + (fn.name || '<anon>') + '` expects ' + fn.params.length + ' ' + argWord(fn.params.length) +
             ', got ' + args.length,
           node,
           this.filePath,

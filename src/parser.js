@@ -65,7 +65,8 @@ class Parser {
       this.toks.push(EOF_TOKEN(line, col));
     }
     this.i = 0;
-    this.depth = 0; // expression nesting depth, for E0206
+    this.depth = 0;      // expression nesting depth, for E0206
+    this.blockDepth = 0; // statement/block nesting depth, same limit
   }
 
   peek(k = 0) {
@@ -207,16 +208,27 @@ class Parser {
   }
 
   // Braces are mandatory and never implied. `hint` phrases where the `{`
-  // was expected so E0201 messages stay specific.
+  // was expected so E0201 messages stay specific. Block nesting counts
+  // against the same limit as expressions so hostile input dies with E0206
+  // instead of a host stack overflow.
   parseBlock(hint) {
-    const open = this.expect(T.LBRACE, hint ? '`{` ' + hint : '`{`');
-    const body = [];
-    while (!this.at(T.RBRACE)) {
-      if (this.at(T.EOF)) this.failExpected('`}`');
-      body.push(this.parseStatement());
+    if (++this.blockDepth > MAX_DEPTH) {
+      throw syntaxError(CODES.NESTING_TOO_DEEP,
+        'blocks nested more than ' + MAX_DEPTH + ' levels deep', this.cur, this.filePath,
+        'restructure the code so blocks do not nest so deeply.');
     }
-    const close = this.next();
-    return Block(spanOf(open, close), body);
+    try {
+      const open = this.expect(T.LBRACE, hint ? '`{` ' + hint : '`{`');
+      const body = [];
+      while (!this.at(T.RBRACE)) {
+        if (this.at(T.EOF)) this.failExpected('`}`');
+        body.push(this.parseStatement());
+      }
+      const close = this.next();
+      return Block(spanOf(open, close), body);
+    } finally {
+      this.blockDepth--;
+    }
   }
 
   parseParams() {
@@ -225,16 +237,18 @@ class Parser {
     const seen = new Set();
     while (!this.at(T.RPAREN)) {
       if (this.at(T.EOF)) this.failExpected('a parameter name');
-      if (!this.at(T.COMMA)) {
-        if (!this.at(T.IDENT)) this.failExpected('a parameter name');
-        const p = this.next();
-        if (seen.has(p.value)) {
-          throw syntaxError(CODES.DUPLICATE_PARAM, 'duplicate parameter name `' + p.value + '`', p,
-            this.filePath, 'rename one of the parameters so every name in the list is distinct.');
-        }
-        seen.add(p.value);
-        params.push({ name: p.value, tok: p });
+      if (!this.at(T.IDENT)) {
+        this.failExpected(this.at(T.COMMA)
+          ? 'a parameter name (a `,` must be followed by another parameter or `)`)'
+          : 'a parameter name');
       }
+      const p = this.next();
+      if (seen.has(p.value)) {
+        throw syntaxError(CODES.DUPLICATE_PARAM, 'duplicate parameter name `' + p.value + '`', p,
+          this.filePath, 'rename one of the parameters so every name in the list is distinct.');
+      }
+      seen.add(p.value);
+      params.push({ name: p.value, tok: p });
       if (!this.eat(T.COMMA)) break;
     }
     this.expect(T.RPAREN, '`)`');
@@ -299,12 +313,23 @@ class Parser {
 
   // Unary binds at level 8: tighter than every binary operator, looser
   // than postfix call/index/slice (level 9), so `-f(x)[0]` is `-(f(x)[0])`.
+  // Chains of `-`/`not` recurse here, so they count against the nesting
+  // limit too.
   parseUnary() {
     const t = this.cur;
     if (t.type === T.MINUS || (t.type === T.KEYWORD && t.value === 'not')) {
-      this.next();
-      const operand = this.parseUnary();
-      return UnOp(spanOf(t, operand), { op: t.type === T.MINUS ? '-' : 'not', operand });
+      if (++this.depth > MAX_DEPTH) {
+        throw syntaxError(CODES.NESTING_TOO_DEEP,
+          'expression nested more than ' + MAX_DEPTH + ' levels deep', t, this.filePath,
+          'simplify the expression or split it across intermediate variables.');
+      }
+      try {
+        this.next();
+        const operand = this.parseUnary();
+        return UnOp(spanOf(t, operand), { op: t.type === T.MINUS ? '-' : 'not', operand });
+      } finally {
+        this.depth--;
+      }
     }
     return this.parsePostfix();
   }

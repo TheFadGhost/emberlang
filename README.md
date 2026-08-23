@@ -10,7 +10,7 @@ Ember needs Node >= 18 and has no dependencies. Clone the repository and run
 everything through `node bin/ember.js`:
 
 ```
-git clone <your-fork-url> emberlang
+git clone https://github.com/TheFadGhost/emberlang
 cd emberlang
 node bin/ember.js help
 ```
@@ -55,7 +55,7 @@ double(21)
 ```
 
 ```
-Ember 0.1.0 — type :help for commands
+Ember 1.0.0 — type :help for commands
 = 42
 argv = []
 double = <fn>

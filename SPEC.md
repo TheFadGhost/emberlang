@@ -1,6 +1,6 @@
 # SPEC.md — the Ember language specification
 
-This document specifies Ember 0.1.0: a small, dynamically typed language
+This document specifies Ember 1.0.0: a small, dynamically typed language
 with C-family syntax, lexical scoping, and first-class functions. It
 describes behaviour as implemented; normative references are the source
 (`src/lexer.js`, `src/parser.js`, `src/interpreter.js`, `src/builtins.js`)

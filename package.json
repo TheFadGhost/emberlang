@@ -1,6 +1,6 @@
 {
   "name": "emberlang",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Ember: a small dynamically typed programming language with a hand-written lexer, parser, tree-walking interpreter and REPL.",
   "license": "MIT",
   "type": "module",
